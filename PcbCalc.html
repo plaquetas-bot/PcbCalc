@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCB Calc Final Pro</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; padding: 15px; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 450px; margin: auto; }
+        h1 { text-align: center; color: #1a73e8; font-size: 22px; margin-bottom: 20px; }
+        label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
+        details { background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee; }
+        summary { font-size: 14px; font-weight: bold; color: #1a73e8; cursor: pointer; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-calc { background: #1a73e8; color: white; }
+        .btn-share { background: #34a853; color: white; margin-top: 5px; }
+        #res-container { margin-top: 20px; border-top: 2px solid #f0f0f0; padding-top: 15px; display: none; }
+        .bloque-res { background: #fdfdfd; border: 1px solid #eee; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
+        .res-item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; border-bottom: 1px dashed #eee; }
+        .total-row { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 5px; font-weight: bold; color: #d93025; font-size: 16px; }
+        textarea { height: 200px; font-family: monospace; font-size: 12px; background: #fafafa; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Calculadora PCB</h1>
+
+    <details>
+        <summary>⚙️ Configuración Dólar</summary>
+        <div style="padding-top: 10px;">
+            <label>Valor Dólar ($)</label>
+            <input type="number" id="dolar" placeholder="Cargar cotización..." oninput="localStorage.setItem('pcb_dolar', this.value)">
+        </div>
+    </details>
+
+    <div class="grid">
+        <div>
+            <label>Largo (cm)</label>
+            <input type="number" id="largo" placeholder="0">
+        </div>
+        <div>
+            <label>Ancho (cm)</label>
+            <input type="number" id="ancho" placeholder="0">
+        </div>
+    </div>
+
+    <div class="grid">
+        <div>
+            <label>Cantidad de Placas</label>
+            <input type="number" id="cantidad" value="1" min="1">
+        </div>
+        <div>
+            <label>Tipo de Placa</label>
+            <select id="tipoPlaca">
+                <option value="simple">Simple Faz</option>
+                <option value="doble">Doble Faz (PTH)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div style="grid-column: span 2;">
+            <label>Cantidad de Máscaras</label>
+            <select id="cantMascaras">
+                <option value="1">1 Máscara</option>
+                <option value="2">2 Máscaras</option>
+            </select>
+        </div>
+    </div>
+
+    <button class="btn-calc" onclick="calcular()">GENERAR PRESUPUESTO</button>
+
+    <div id="res-container">
+        <div id="lista-precios"></div>
+        <label style="margin-top:15px">Editar mensaje de WhatsApp:</label>
+        <textarea id="textoEditable"></textarea>
+        <button class="btn-share" onclick="compartirWhatsApp()">ENVIAR POR WHATSAPP</button>
+    </div>
+</div>
+
+<script>
+    window.onload = function() {
+        var dGuardado = localStorage.getItem('pcb_dolar');
+        if(dGuardado) document.getElementById('dolar').value = dGuardado;
+    };
+
+    function redondear100(num) {
+        var valor = Math.round(num / 100) * 100;
+        return (valor < 100) ? 100 : valor;
+    }
+
+    function fP(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    function calcular() {
+        var l = parseFloat(document.getElementById('largo').value);
+        var a = parseFloat(document.getElementById('ancho').value);
+        var d = parseFloat(document.getElementById('dolar').value);
+        var cant = parseInt(document.getElementById('cantidad').value) || 1;
+        var m_cant = parseInt(document.getElementById('cantMascaras').value);
+        var tipo = document.getElementById('tipoPlaca').value;
+
+        if (!l || !a || !d) {
+            alert("Faltan datos (Largo, Ancho o Dólar).");
+            return;
+        }
+
+        var sup = (l * a) / 100;
+        var costoMascaraNum = redondear100((sup * d * 6) * m_cant);
+        var costoSerigrafiaNum = redondear100(sup * d * 6);
+
+        // Definimos materiales según el tipo seleccionado
+        var materiales = [];
+        if (tipo === "simple") {
+            materiales = [
+                {n: "Pértinax", f: 5}, {n: "CEM", f: 7}, {n: "FR4", f: 9}
+            ];
+        } else {
+            materiales = [
+                {n: "PTH", f: 15}
+            ];
+        }
+
+        var html = "";
+        var textoMsg = "*PRESUPUESTO PCB*\n" + l + "x" + a + " cm | Cantidad: " + cant + "\n" +
+                       "Tipo: " + (tipo === "simple" ? "Simple Faz" : "Doble Faz") + "\n" +
+                       "--------------------------\n\n";
+
+        for (var i = 0; i < materiales.length; i++) {
+            var m = materiales[i];
+            var costoMatTotalNum = redondear100(sup * d * m.f * cant);
+            var totalFinalNum = costoMatTotalNum + costoMascaraNum + costoSerigrafiaNum;
+
+            var lineaMaterial = cant + " placas " + m.n;
+            var lineaMascara = "Máscara (" + m_cant + ")";
+
+            html += '<div class="bloque-res">' +
+                        '<div class="res-item"><span>' + lineaMaterial + ':</span> <span>$' + fP(costoMatTotalNum) + '</span></div>' +
+                        '<div class="res-item"><span>' + lineaMascara + ':</span> <span>$' + fP(costoMascaraNum) + '</span></div>' +
+                        '<div class="res-item"><span>Serigrafía:</span> <span>$' + fP(costoSerigrafiaNum) + '</span></div>' +
+                        '<div class="total-row"><span>TOTAL ' + m.n.toUpperCase() + ':</span> <span>$' + fP(totalFinalNum) + '</span></div>' +
+                    '</div>';
+
+            textoMsg += "*OPCIÓN " + m.n.toUpperCase() + ":*\n" +
+                        "- " + lineaMaterial + ": $" + fP(costoMatTotalNum) + "\n" +
+                        "- " + lineaMascara + ": $" + fP(costoMascaraNum) + "\n" +
+                        "- Serigrafía: $" + fP(costoSerigrafiaNum) + "\n" +
+                        "> *TOTAL: $" + fP(totalFinalNum) + "*\n\n";
+        }
+
+        textoMsg += "--------------------------";
+
+        document.getElementById('lista-precios').innerHTML = html;
+        document.getElementById('res-container').style.display = "block";
+        document.getElementById('textoEditable').value = textoMsg;
+    }
+
+    function compartirWhatsApp() {
+        var texto = document.getElementById('textoEditable').value;
+        window.open("https://wa.me/?text=" + encodeURIComponent(texto), '_blank');
+    }
+// Registrar el Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+}
+
+// Agregar el link al manifiesto en el <head>
+// (Buscá la parte de arriba de tu archivo y pegá esto debajo de <title>)
+// <link rel="manifest" href="manifest.json">
+</script>
+
+</body>
+</html>
