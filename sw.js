@@ -1,4 +1,4 @@
-const cacheName = 'pcb-calc-v1';
+const cacheName = 'pcb-calc-v2';
 const assets = [
   'index.html',
   'manifest.json'
